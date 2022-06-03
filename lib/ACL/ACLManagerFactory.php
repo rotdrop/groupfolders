@@ -15,6 +15,8 @@ use OCP\IUser;
 use Psr\Log\LoggerInterface;
 
 class ACLManagerFactory {
+	private $managers = [];
+
 	public function __construct(
 		private readonly RuleManager $ruleManager,
 		private readonly TrashManager $trashManager,
@@ -25,13 +27,17 @@ class ACLManagerFactory {
 	}
 
 	public function getACLManager(IUser $user): ACLManager {
-		return new ACLManager(
-			$this->ruleManager,
-			$this->trashManager,
-			$this->userMappingManager,
-			$this->logger,
-			$user,
-			$this->config->getValueString('groupfolders', 'acl-inherit-per-user', 'false') === 'true',
-		);
+		$userId = $user->getUID();
+		if (empty($this->managers[$userId])) {
+			$this->managers[$userId] = new ACLManager(
+				$this->ruleManager,
+				$this->trashManager,
+				$this->userMappingManager,
+				$this->logger,
+				$user,
+				$this->config->getValueString('groupfolders', 'acl-inherit-per-user', 'false') === 'true',
+			);
+		}
+		return $this->managers[$userId];
 	}
 }
