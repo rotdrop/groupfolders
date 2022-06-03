@@ -130,25 +130,35 @@ class MountProvider implements IMountProvider {
 		}, $folders);
 		$conflicts = $this->findConflictsForUser($user, $mountPoints);
 
-		return array_values(array_filter(array_map(function ($folder) use ($user, $loader, $conflicts) {
-			// check for existing files in the user home and rename them if needed
-			$originalFolderName = $folder['mount_point'];
-			if (in_array($originalFolderName, $conflicts)) {
-				/** @var IStorage $userStorage */
-				$userStorage = $this->mountProviderCollection->getHomeMountForUser($user)->getStorage();
-				$userCache = $userStorage->getCache();
-				$i = 1;
-				$folderName = $folder['mount_point'] . ' (' . $i++ . ')';
+		// first resolve conflicts
+		foreach ($conflicts as $originalFolderName) {
+			/** @var IStorage $userStorage */
+			$userStorage = $this->mountProviderCollection->getHomeMountForUser($user)->getStorage();
+			$userCache = $userStorage->getCache();
+			$i = 1;
+			$folderName = $originalFolderName . ' (' . $i++ . ')';
 
-				while ($userCache->inCache("files/$folderName")) {
-					$folderName = $originalFolderName . ' (' . $i++ . ')';
-				}
-
-				$userStorage->rename("files/$originalFolderName", "files/$folderName");
-				$userCache->move("files/$originalFolderName", "files/$folderName");
-				$userStorage->getPropagator()->propagateChange("files/$folderName", time());
+			while ($userCache->inCache("files/$folderName")) {
+				$folderName = $originalFolderName . ' (' . $i++ . ')';
 			}
 
+			$userStorage->rename("files/$originalFolderName", "files/$folderName");
+			$userCache->move("files/$originalFolderName", "files/$folderName");
+			$userStorage->getPropagator()->propagateChange("files/$folderName", time());
+		}
+
+		// preload acl in order to avoid an excessive number of data-base requests
+		if (!empty($user)) {
+			$aclRoots = array_values(array_filter(array_map(function($folder) {
+				return $folder['acl'] ? $this->getJailPath($folder['folder_id']) : null;
+			}, $folders)));
+			if (!empty($aclRoots)) {
+				$aclManager = $this->aclManagerFactory->getACLManager($user);
+				$aclManager->preloadPaths($aclRoots);
+			}
+		}
+
+		return array_values(array_filter(array_map(function ($folder) use ($user, $loader, $conflicts) {
 			return $this->getMount(
 				$folder['folder_id'],
 				'/' . $user->getUID() . '/files/' . $folder['mount_point'],
