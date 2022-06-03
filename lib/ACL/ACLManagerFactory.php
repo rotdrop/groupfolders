@@ -28,6 +28,7 @@ use OCP\IUser;
 class ACLManagerFactory {
 	private $ruleManager;
 	private $rootFolderProvider;
+	private $managers = [];
 
 	public function __construct(RuleManager $ruleManager, callable $rootFolderProvider) {
 		$this->ruleManager = $ruleManager;
@@ -35,6 +36,10 @@ class ACLManagerFactory {
 	}
 
 	public function getACLManager(IUser $user, ?int $rootStorageId = null): ACLManager {
-		return new ACLManager($this->ruleManager, $user, $this->rootFolderProvider, $rootStorageId);
+		$userId = $user->getUID();
+		if (empty($this->managers[$userId][$rootStorageId ?? 0])) {
+			$this->managers[$userId][$rootStorageId ?? 0] = new ACLManager($this->ruleManager, $user, $this->rootFolderProvider, $rootStorageId);
+		}
+		return $this->managers[$userId][$rootStorageId ?? 0];
 	}
 }
