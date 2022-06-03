@@ -64,6 +64,7 @@ class ACLManager {
 		});
 
 		if (!empty($nonCachedPaths)) {
+			$rules = array_merge($rules, array_fill_keys($nonCachedPaths, []));
 			$newRules = $this->ruleManager->getRulesForFilesByPath($this->user, $this->getRootStorageId(), $nonCachedPaths);
 			foreach ($newRules as $path => $rulesForPath) {
 				if ($cache) {
