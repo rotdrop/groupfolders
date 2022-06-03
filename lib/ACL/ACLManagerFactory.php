@@ -16,6 +16,7 @@ use Psr\Log\LoggerInterface;
 
 class ACLManagerFactory {
 	private $rootFolderProvider;
+	private $managers = [];
 
 	public function __construct(
 		private RuleManager $ruleManager,
@@ -29,15 +30,19 @@ class ACLManagerFactory {
 	}
 
 	public function getACLManager(IUser $user, ?int $rootStorageId = null): ACLManager {
-		return new ACLManager(
-			$this->ruleManager,
-			$this->trashManager,
-			$this->userMappingManager,
-			$this->logger,
-			$user,
-			$this->rootFolderProvider,
-			$rootStorageId,
-			$this->config->getAppValue('groupfolders', 'acl-inherit-per-user', 'false') === 'true',
-		);
+		$userId = $user->getUID();
+		if (empty($this->managers[$userId][$rootStorageId ?? 0])) {
+			$this->managers[$userId][$rootStorageId ?? 0] = new ACLManager(
+				$this->ruleManager,
+				$this->trashManager,
+				$this->userMappingManager,
+				$this->logger,
+				$user,
+				$this->rootFolderProvider,
+				$rootStorageId,
+				$this->config->getAppValue('groupfolders', 'acl-inherit-per-user', 'false') === 'true',
+			);
+		}
+		return $this->managers[$userId][$rootStorageId ?? 0];
 	}
 }
