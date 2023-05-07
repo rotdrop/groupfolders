@@ -30,6 +30,7 @@ use OCP\IUserSession;
 
 class MountProvider implements IMountProvider {
 	private ?Folder $root = null;
+	private ?string $currentUID = '';
 
 	public function __construct(
 		private readonly FolderManager $folderManager,
@@ -94,22 +95,29 @@ class MountProvider implements IMountProvider {
 	}
 
 	private function getCurrentUID(): ?string {
-		try {
-			// wopi requests are not logged in, instead we need to get the editor user from the access token
-			if (strpos($this->request->getRawPathInfo(), 'apps/richdocuments/wopi') && class_exists('OCA\Richdocuments\Db\WopiMapper')) {
-				$wopiMapper = \OCP\Server::get('OCA\Richdocuments\Db\WopiMapper');
+		if ($this->currentUID !== '') {
+			return $this->currentUID;
+		}
+
+		// wopi requests are not logged in, instead we need to get the editor user from the access token
+		if (strpos($this->request->getRawPathInfo(), 'apps/richdocuments/wopi') && class_exists('OCA\Richdocuments\Db\WopiMapper')) {
+			try {
+				$wopiMapper = \OC::$server->get('OCA\Richdocuments\Db\WopiMapper');
 				$token = $this->request->getParam('access_token');
 				if ($token) {
 					$wopi = $wopiMapper->getPathForToken($token);
-					return $wopi->getEditorUid();
+					$this->currentUID = $wopi->getEditorUid();
 				}
+			} catch (\Exception) {
 			}
-		} catch (\Exception) {
 		}
 
-		$user = $this->userSession->getUser();
+		if ($this->currentUID === '') {
+			$user = $this->userSession->getUser();
+			$this->currentUID = $user ? $user->getUID() : null;
+		}
 
-		return $user?->getUID();
+		return $this->currentUID;
 	}
 
 	public function getMount(
