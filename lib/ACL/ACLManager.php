@@ -26,7 +26,7 @@ class ACLManager {
 		private readonly IUser $user,
 		private readonly bool $inheritMergePerUser = false,
 	) {
-		$this->ruleCache = new CappedMemoryCache();
+		$this->ruleCache = new CappedMemoryCache(4096);
 	}
 
 	/**
