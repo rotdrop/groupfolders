@@ -37,6 +37,7 @@ use Override;
 use PDO;
 
 class MountProvider implements IMountProvider, IPartialMountProvider {
+	private ?string $currentUID = '';
 	public function __construct(
 		private readonly FolderManager $folderManager,
 		private readonly ACLManagerFactory $aclManagerFactory,
@@ -100,22 +101,29 @@ class MountProvider implements IMountProvider, IPartialMountProvider {
 	}
 
 	private function getCurrentUID(): ?string {
-		try {
-			// wopi requests are not logged in, instead we need to get the editor user from the access token
-			if (str_contains($this->request->getRawPathInfo(), 'apps/richdocuments/wopi') && class_exists(WopiMapper::class)) {
-				$wopiMapper = Server::get(WopiMapper::class);
+		if ($this->currentUID !== '') {
+			return $this->currentUID;
+		}
+
+		// wopi requests are not logged in, instead we need to get the editor user from the access token
+		if (strpos($this->request->getRawPathInfo(), 'apps/richdocuments/wopi') && class_exists(WopiMapper::class)) {
+			try {
+				$wopiMapper = \OC::$server->get(WopiMapper::class);
 				$token = $this->request->getParam('access_token');
 				if ($token) {
 					$wopi = $wopiMapper->getPathForToken($token);
-					return $wopi->getEditorUid();
+					$this->currentUID = $wopi->getEditorUid();
 				}
+			} catch (\Exception) {
 			}
-		} catch (Exception) {
 		}
 
-		$user = $this->userSession->getUser();
+		if ($this->currentUID === '') {
+			$user = $this->userSession->getUser();
+			$this->currentUID = $user ? $user->getUID() : null;
+		}
 
-		return $user?->getUID();
+		return $this->currentUID;
 	}
 
 	/**
