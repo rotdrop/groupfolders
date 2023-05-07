@@ -29,7 +29,7 @@ class ACLManager {
 		private ?int         $rootStorageId = null,
 		private bool         $inheritMergePerUser = false,
 	) {
-		$this->ruleCache = new CappedMemoryCache();
+		$this->ruleCache = new CappedMemoryCache(4096);
 		$this->rootFolderProvider = $rootFolderProvider;
 	}
 
