@@ -38,7 +38,7 @@ class ACLManager {
 
 	public function __construct(RuleManager $ruleManager, IUser $user, callable $rootFolderProvider, ?int $rootStorageId = null) {
 		$this->ruleManager = $ruleManager;
-		$this->ruleCache = new CappedMemoryCache();
+		$this->ruleCache = new CappedMemoryCache(4096);
 		$this->user = $user;
 		$this->rootFolderProvider = $rootFolderProvider;
 		$this->rootStorageId = $rootStorageId;
