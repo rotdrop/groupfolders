@@ -72,6 +72,7 @@ class MountProvider implements IMountProvider {
 	private ?int $rootStorageId = null;
 	private bool $allowRootShare;
 	private bool $enableEncryption;
+	private ?string $currentUID = '';
 
 	public function __construct(
 		IGroupManager $groupProvider,
@@ -153,7 +154,7 @@ class MountProvider implements IMountProvider {
 				return $folder['acl'] ? $this->getJailPath($folder['folder_id']) : null;
 			}, $folders)));
 			if (!empty($aclRoots)) {
-				$aclManager = $this->aclManagerFactory->getACLManager($user);
+				$aclManager = $this->aclManagerFactory->getACLManager($user, $this->getRootStorageId());
 				$aclManager->preloadPaths($aclRoots);
 			}
 		}
@@ -173,21 +174,29 @@ class MountProvider implements IMountProvider {
 	}
 
 	private function getCurrentUID(): ?string {
-		try {
-			// wopi requests are not logged in, instead we need to get the editor user from the access token
-			if (strpos($this->request->getRawPathInfo(), 'apps/richdocuments/wopi') && class_exists('OCA\Richdocuments\Db\WopiMapper')) {
+		if ($this->currentUID !== '') {
+			return $this->currentUID;
+		}
+
+		// wopi requests are not logged in, instead we need to get the editor user from the access token
+		if (strpos($this->request->getRawPathInfo(), 'apps/richdocuments/wopi') && class_exists('OCA\Richdocuments\Db\WopiMapper')) {
+			try {
 				$wopiMapper = \OC::$server->get('OCA\Richdocuments\Db\WopiMapper');
 				$token = $this->request->getParam('access_token');
 				if ($token) {
 					$wopi = $wopiMapper->getPathForToken($token);
-					return $wopi->getEditorUid();
+					$this->currentUID = $wopi->getEditorUid();
 				}
+			} catch (\Exception $e) {
 			}
-		} catch (\Exception $e) {
 		}
 
-		$user = $this->userSession->getUser();
-		return $user ? $user->getUID() : null;
+		if ($this->currentUID === '') {
+			$user = $this->userSession->getUser();
+			$this->currentUID = $user ? $user->getUID() : null;
+		}
+
+		return $this->currentUID;
 	}
 
 	public function getMount(int $id, string $mountPoint, int $permissions, int $quota, ?ICacheEntry $cacheEntry = null, IStorageFactory $loader = null, bool $acl = false, IUser $user = null): ?IMountPoint {
