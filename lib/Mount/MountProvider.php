@@ -119,6 +119,24 @@ class MountProvider implements IMountProvider {
 		}, $folders);
 		$conflicts = $this->findConflictsForUser($user, $mountPoints);
 
+		// first resolve conflicts
+		foreach ($conflicts as $originalFolderName) {
+			// check for existing files in the user home and rename them if needed
+			/** @var IStorage $userStorage */
+			$userStorage = $this->mountProviderCollection->getHomeMountForUser($user)->getStorage();
+			$userCache = $userStorage->getCache();
+			$i = 1;
+			$folderName = $folder['mount_point'] . ' (' . $i++ . ')';
+
+			while ($userCache->inCache("files/$folderName")) {
+				$folderName = $originalFolderName . ' (' . $i++ . ')';
+			}
+
+			$userStorage->rename("files/$originalFolderName", "files/$folderName");
+			$userCache->move("files/$originalFolderName", "files/$folderName");
+			$userStorage->getPropagator()->propagateChange("files/$folderName", time());
+		}
+
 		$foldersWithAcl = array_filter($folders, function (array $folder) {
 			return $folder['acl'];
 		});
@@ -128,25 +146,7 @@ class MountProvider implements IMountProvider {
 		$aclManager = $this->aclManagerFactory->getACLManager($user, $this->getRootStorageId());
 		$rootRules = $aclManager->getRelevantRulesForPath($aclRootPaths);
 
-		return array_merge(...array_filter(array_map(function (array $folder) use ($user, $loader, $conflicts, $aclManager, $rootRules): ?array {
-			// check for existing files in the user home and rename them if needed
-			$originalFolderName = $folder['mount_point'];
-			if (in_array($originalFolderName, $conflicts)) {
-				/** @var IStorage $userStorage */
-				$userStorage = $this->mountProviderCollection->getHomeMountForUser($user)->getStorage();
-				$userCache = $userStorage->getCache();
-				$i = 1;
-				$folderName = $folder['mount_point'] . ' (' . $i++ . ')';
-
-				while ($userCache->inCache("files/$folderName")) {
-					$folderName = $originalFolderName . ' (' . $i++ . ')';
-				}
-
-				$userStorage->rename("files/$originalFolderName", "files/$folderName");
-				$userCache->move("files/$originalFolderName", "files/$folderName");
-				$userStorage->getPropagator()->propagateChange("files/$folderName", time());
-			}
-
+		return array_merge(...array_filter(array_map(function (array $folder) use ($user, $loader, $aclManager, $rootRules): ?array {
 			$mount = $this->getMount(
 				$folder['folder_id'],
 				'/' . $user->getUID() . '/files/' . $folder['mount_point'],
